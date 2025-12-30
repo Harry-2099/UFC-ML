@@ -13,9 +13,9 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
                                     ########### LOAD MODELS ##########
 BASE_DIR = Path(__file__).parent
-print("BASE PATH:::",BASE_DIR)
+#print("BASE PATH:::",BASE_DIR)
 
-models_dir = BASE_DIR/ "UFC MODELS"
+models_dir = BASE_DIR/ "models"
 # --- Logistic Regression ---
 log_model = joblib.load(models_dir / "ufc_logreg.pkl")
 
@@ -74,7 +74,7 @@ st.set_page_config(
 )
 
 #title
-st.write("# UFC Predictions with Machine Learning")
+st.title("Machine Learning Approach to UFC")
 
 #navigation
 pages = ["Welcome", "How to", "Get Started","Modeling Table","How it Works"]
@@ -89,23 +89,23 @@ st.session_state.page = page
 
 
 if page == "Welcome":
+    st.subheader("Welcome!")
     st.markdown("""
-    ## Welcome!
     Here you'll be able to utilize some machine learning models to get predictions and quantify UFC outcomes. 
     Check out the How to section if you've never been here before, and if you know to get predictions then jump right to the 
     Get started section! If your interested in modeling procedure, methodology, data aquasitition, or anything ML stats related
     out the How it Works section.
     """)
 elif page == "How to":
+    st.subheader("**How to**: A Few Clicks to Predict")
     st.markdown("""
-    ### How to:
     The methodolgy used in this project allows for predictions to be made on entire UFC cards/events by simply entering a link below.
     Naviagate to the offcial ufc statistics page located here http://ufcstats.com/statistics/events/upcoming and click on the event you'd
     like to get predictions for. Copy the url, paste into box below, and hit Run Models. Done! 🥊
     """)
 elif page == "Get Started":
-    st.markdown("### Get Started")
-    st.write("State right now:", st.session_state.ran_models)
+    st.subheader("Get Started: Paste, Scrape, & Predict 🤖")
+    #st.write("State right now:", st.session_state.ran_models)
     #CHECK URL FUNCTIONs
     #UFC URL
     def is_valid_url(url: str) -> bool:
@@ -332,7 +332,7 @@ elif page == "Get Started":
 
 # NAVIGATION MODELING TABLE
 elif page == "Modeling Table":
-    st.markdown("### Modeling Table")
+    st.subheader("Modeling Table")
     st.markdown(
         """
         #### This Table allows you to look at the modeled probabilites for all 4 models yourself.     
@@ -352,5 +352,10 @@ elif page == "Modeling Table":
     #     st.dataframe(st.session_state.predictions, use_container_width=True)
 
 elif page == "How it Works":
-    st.markdown("### How it Works")
+    st.header("How it Works")
+    st.subheader("Part One: Web Scrapping")
+    st.write("Explain methodology........")
+    st.subheader("Part Two: Data Manipulation, Cleaning, & Feature Engineering")
+    st.write("Explain methodology........")
+    st.subheader("Modeling: Logistic Regression, XG Boost & Feedforward Neural Network -> Ensemable Model")
     st.write("Explain methodology........")
