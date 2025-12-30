@@ -66,7 +66,7 @@ if "predictions" not in st.session_state:
     st.session_state.predictions = None
 
 if "page" not in st.session_state:
-    st.session_state.page = "Welcome"
+    st.session_state.page = "Welcome!"
 
 st.set_page_config(
     layout="wide",
@@ -74,10 +74,13 @@ st.set_page_config(
 )
 
 #title
-st.title("Machine Learning Approach to UFC")
+#st.title("Machine Learning Approach to UFC")
+## FOR CENTERING
+left, center, right = st.columns([1, 6, 1])
 
 #navigation
-pages = ["Welcome", "How to", "Get Started","Modeling Table","How it Works"]
+pages = ["Welcome!", 
+         "How to", "Get Started: Predict & Visualize Outputs","Modeling Table: Detailed Model Outputs","How it Works"]
 
 with st.sidebar.expander("Navigation", expanded=True):
     page = st.radio(
@@ -88,14 +91,28 @@ with st.sidebar.expander("Navigation", expanded=True):
 st.session_state.page = page
 
 
-if page == "Welcome":
-    st.subheader("Welcome!")
-    st.markdown("""
-    Here you'll be able to utilize some machine learning models to get predictions and quantify UFC outcomes. 
-    Check out the How to section if you've never been here before, and if you know to get predictions then jump right to the 
-    Get started section! If your interested in modeling procedure, methodology, data aquasitition, or anything ML stats related
-    out the How it Works section.
-    """)
+if page == "Welcome!":
+    #st.subheader("Welcome!")
+    with center:
+        st.title("UFC Predictions with Machine Learning")
+
+        st.markdown(
+        "<h3 style='text-align:center;'>"
+        "Machine Learning–Driven Probability Modeling"
+        "</h3>",
+        unsafe_allow_html=True)
+        st.caption(
+            "<h3 style='text-align:center;'>"
+            "No Hype, Just Probabilistic Modeling"
+            "</h3>",
+            unsafe_allow_html=True
+            )
+    st.divider()
+    st.markdown("""   
+    #### - Quantify UFC Outcomes with Machine Learning Models. 
+    #### - Check out the **How to** section if you've never been here before or jump right to the Get Started Section 
+    #### - Modeling Procedure, Methodology, and Data aquasitition Outlined in the How It Works Section""")
+    
 elif page == "How to":
     st.subheader("**How to**: A Few Clicks to Predict")
     st.markdown("""
@@ -103,8 +120,8 @@ elif page == "How to":
     Naviagate to the offcial ufc statistics page located here http://ufcstats.com/statistics/events/upcoming and click on the event you'd
     like to get predictions for. Copy the url, paste into box below, and hit Run Models. Done! 🥊
     """)
-elif page == "Get Started":
-    st.subheader("Get Started: Paste, Scrape, & Predict 🤖")
+elif page == "Get Started: Predict & Visualize Outputs":
+    st.subheader("Paste, Scrape, & Predict 🤖")
     #st.write("State right now:", st.session_state.ran_models)
     #CHECK URL FUNCTIONs
     #UFC URL
@@ -288,7 +305,13 @@ elif page == "Get Started":
             st.session_state.show_table = False  # reset on new run
 
             ##################################### PLots #####################################
-
+            #handeling dark mode/ light mode
+            def is_dark_theme() -> bool:
+                #get the option from streamlit
+                base = st.get_option("theme.base")
+                # or checks for truthy -> non null or empty. Check if dark -> return boolean
+                return (base or "light").lower() == "dark"
+            
             prob_cols = [col for col in event_stats if "Prob" in col in col and "Predicted" not in col]
             #print(pred_cols)
             prob_cols = ["Name","Opponent"] + prob_cols
@@ -309,17 +332,24 @@ elif page == "Get Started":
                 win  = [p1, p2]
                 loss = [1 - p1, 1 - p2]
                 #BARS
+                # set text colors
+                dark = is_dark_theme()
+                themed_text = "white" if dark else "black"
+                themed_bar = "white" if dark else "bisque"
+                #colors conditonal on winner
                 colors = ["blue" if w >= 0.5 else "firebrick" for w in win]
+                #STACKED BARS
+                #win part bar
                 ax.barh(y, win, height=0.55, color=colors)
-                ax.barh(y, loss, height=0.2, left=win, color="white")
+                #lose part bar
+                ax.barh(y, loss, height=0.2, left=win, color=themed_bar)
                 ax.set_xlim(0, 1)
-                ax.set_xlabel("Win Probability",color = "white")
-                ax.set_title(f"{F1} vs {F2} | Predicted Pick: {pick}", fontsize=12,color = 'white')
+                ax.set_xlabel("Win Probability",color = themed_text)
+                ax.set_title(f"{F1} vs {F2} | Predicted Pick: {pick}", fontsize=12,color = themed_text)
 
                 # Transparent background
                 #ax.set_facecolor("none")
                 # fig.patch.set_alpha(0)
-
                 ax.grid(False)
                 for spine in ax.spines.values():
                     spine.set_visible(False)
@@ -331,7 +361,7 @@ elif page == "Get Started":
                 st.pyplot(fig,transparent = True)
 
 # NAVIGATION MODELING TABLE
-elif page == "Modeling Table":
+elif page == "Modeling Table: Detailed Model Outputs":
     st.subheader("Modeling Table")
     st.markdown(
         """
