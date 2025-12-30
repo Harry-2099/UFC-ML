@@ -2,7 +2,7 @@ streamlit
 pandas
 numpy
 scikit-learn
-xgboost
+xgboost==2.0.3
 torch
 joblib
 requests
