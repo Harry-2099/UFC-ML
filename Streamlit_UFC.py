@@ -354,8 +354,8 @@ elif page == "Get Started: Predict & Visualize Outputs":
                 for spine in ax.spines.values():
                     spine.set_visible(False)
 
-                ax.tick_params(axis="y",colors="white", length=0)
-                ax.tick_params(axis="x", colors="white")
+                ax.tick_params(axis="y",colors=themed_text, length=0)
+                ax.tick_params(axis="x", colors=themed_text)
 
                 plt.tight_layout()
                 st.pyplot(fig,transparent = True)
