@@ -21,7 +21,7 @@ log_model = joblib.load(models_dir / "ufc_logreg.pkl")
 
 # --- XGBoost ---
 xgb_model = XGBClassifier()
-xgb_model.load_model(str(models_dir / "ufc_xgb.json"))  # str() is safest for xgb
+xgb_model = joblib.load(models_dir / "ufc_xgb.pkl")
 
 # --- Neural Net ---
 class Logit_NeuralNet(nn.Module):
