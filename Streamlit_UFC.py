@@ -99,7 +99,7 @@ if page == "Welcome!":
 
         st.markdown(
         "<h3 style='text-align:center;'>"
-        "Machine Learning–Driven Probability Modeling"
+        "Machine Learning–Driven Modeling"
         "</h3>",
         unsafe_allow_html=True)
         st.caption(
@@ -115,12 +115,16 @@ if page == "Welcome!":
     #### - Modeling Procedure, Methodology, and Data aquasitition Outlined in the How It Works Section""")
     
 elif page == "How to":
-    st.subheader("**How to**: A Few Clicks to Predict")
-    st.markdown("""
-    The methodolgy used in this project allows for predictions to be made on entire UFC cards/events by simply entering a link below.
-    Naviagate to the offcial ufc statistics page located here http://ufcstats.com/statistics/events/upcoming and click on the event you'd
-    like to get predictions for. Copy the url, paste into the box in the **Get Started** section, and hit Run Models. Done! 🥊
-    """)
+    with center:
+        st.subheader(
+        "**How to**: A Few Clicks to Predict")
+        st.markdown(
+        """The methodolgy used in this project allows for predictions to be made on entire UFC cards/events by simply entering a link below.
+        Naviagate to the offcial ufc statistics page located here http://ufcstats.com/statistics/events/upcoming and click on the event you'd
+        like to get predictions for. Copy the url, paste into the box in the **Get Started** section, and hit Run Models. Done! 🥊""")
+        #insert how to video
+        st.video(BASE_DIR/"UFC_ML_DEMO.mov")
+
 elif page == "Get Started: Predict & Visualize Outputs":
     st.subheader("Paste, Scrape, & Predict 🤖")
     #st.write("State right now:", st.session_state.ran_models)
