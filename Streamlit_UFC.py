@@ -73,6 +73,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
 #title
 #st.title("Machine Learning Approach to UFC")
 ## FOR CENTERING
@@ -118,7 +119,7 @@ elif page == "How to":
     st.markdown("""
     The methodolgy used in this project allows for predictions to be made on entire UFC cards/events by simply entering a link below.
     Naviagate to the offcial ufc statistics page located here http://ufcstats.com/statistics/events/upcoming and click on the event you'd
-    like to get predictions for. Copy the url, paste into box below, and hit Run Models. Done! 🥊
+    like to get predictions for. Copy the url, paste into the box in the **Get Started** section, and hit Run Models. Done! 🥊
     """)
 elif page == "Get Started: Predict & Visualize Outputs":
     st.subheader("Paste, Scrape, & Predict 🤖")
@@ -306,12 +307,15 @@ elif page == "Get Started: Predict & Visualize Outputs":
 
             ##################################### PLots #####################################
             #handeling dark mode/ light mode
-            def is_dark_theme() -> bool:
-                #get the option from streamlit
-                base = st.get_option("theme.base")
-                # or checks for truthy -> non null or empty. Check if dark -> return boolean
-                return (base or "light").lower() == "dark"
-            
+            theme_type = st.context.theme.type
+
+            # Check if the theme is 'dark'
+            def is_dark(theme_type):
+                if theme_type == "dark":
+                    return True
+                else:
+                    return False
+                        
             prob_cols = [col for col in event_stats if "Prob" in col in col and "Predicted" not in col]
             #print(pred_cols)
             prob_cols = ["Name","Opponent"] + prob_cols
@@ -333,7 +337,7 @@ elif page == "Get Started: Predict & Visualize Outputs":
                 loss = [1 - p1, 1 - p2]
                 #BARS
                 # set text colors
-                dark = is_dark_theme()
+                dark = is_dark(theme_type)
                 themed_text = "white" if dark else "black"
                 themed_bar = "white" if dark else "bisque"
                 #colors conditonal on winner
