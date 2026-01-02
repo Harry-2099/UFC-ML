@@ -9,5 +9,4 @@ requests
 beautifulsoup4
 lxml
 matplotlib
-PIL
-
+Pillow
