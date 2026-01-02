@@ -48,12 +48,88 @@ NN_model = Logit_NeuralNet(input_dim)
 state = torch.load(models_dir / "ufc_nn.pt", map_location="cpu")
 NN_model.load_state_dict(state)
 NN_model.eval()
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 ### Ensemble
 meta_model = joblib.load(models_dir / "ufc_EN_stacker.pkl")
+ ############################### LOAD DATA AND PRE PROCESSING ##########################
+#df ======> historic data 
+df = pd.read_csv(BASE_DIR/"final_ufc_stats.csv")
+df = df.drop(columns="Unnamed: 0" )
+
+
+#preprocessing functions
+def preprocess_new_data(event):
+    # Merge fighter stats
+    event_stats = event.merge(df, on="Name")
+
+    # Merge opponent stats
+    event_stats = event_stats.merge(df.add_prefix("opp_"), left_on="Opponent", right_on="opp_Name")
+    event_stats.head()
+
+    # 1. Get all numeric columns except Y
+    numeric_cols = [
+        col for col in event_stats.columns
+        if event_stats[col].dtype in ['int64', 'float64']
+        and "STANCE" not in col
+    ]
+    numeric_cols = [ x for x in numeric_cols if x not in ['KD', 'STR', 'TD', 'Sub', 'round'] ]
+    #print(numeric_cols)
+    # 2. Separate fighter stats and opponent stats
+    f1_cols = sorted([col for col in numeric_cols if not col.startswith("opp_")])
+
+    # 2. Separate fighter stats and opponent stats
+    f2_cols = sorted([col.replace("opp_", "") for col in numeric_cols if col.startswith("opp_")])
+
+    # 3. Build real column names for subtraction
+    f2_full_cols = ["opp_" + col for col in f2_cols]
+
+    # 4. Compute deltas
+    delta_df = event_stats[f1_cols].values - event_stats[f2_full_cols].values
+
+    # 5. Create delta names
+    delta_names = [f"delta_{col}" for col in f1_cols]
+
+    # 6. Assign back into dataframe
+    event_stats[delta_names] = delta_df
+    event_stats.head()
+
+        ## Make stance int
+    stance_cols = [c for c in event_stats.columns if "STANCE" in c]
+    #print(stance_cols)
+    event_stats[stance_cols] = event_stats[stance_cols].astype(int)
+
+    # Add a readable fight index BEFORE dropping columns
+    event_stats["matchup"] = event_stats["Name"] + " vs " + event_stats["Opponent"]
+
+    # Columns to drop from feature matrix
+    drop_cols = [
+        col for col in event_stats.columns
+        if event_stats[col].dtype == "object"          # drop all string columns
+        or col in ['KD', 'STR', 'TD', 'Sub', 'round']  # drop raw fight stats
+    ]
+
+    drop_cols += ["DOB", "opp_DOB", "matchup"]   # EXCLUDE matchup from X
+
+    #print("Dropping:", drop_cols)
+
+    # Create model input
+    x_new = event_stats.drop(columns=drop_cols)
+
+    print(f"Columns in x_new: {x_new.columns}")
+    #display(event_stats)
+    return x_new, event_stats
+
 
                             ############# Streamlit Section ###########
-
 import streamlit as st
+#theming
+theme_type = st.context.theme.type
+# Check if the theme is 'dark'
+def is_dark(theme_type):
+    if theme_type == "dark":
+        return True
+    else:
+        return False
 
 # INIT STREAMLIT STATES
 if "ran_models" not in st.session_state:
@@ -74,14 +150,13 @@ st.set_page_config(
 )
 
 
-#title
-#st.title("Machine Learning Approach to UFC")
+
 ## FOR CENTERING
 left, center, right = st.columns([1, 6, 1])
 
 #navigation
 pages = ["Welcome!", 
-         "How to", "Get Started: Predict & Visualize Outputs","Modeling Table: Detailed Model Outputs","How it Works"]
+         "How to", "Next Event Predictions","Run New Events & Visualize Outputs","Modeling Table: Detailed Model Outputs","How it Works"]
 
 with st.sidebar.expander("Navigation", expanded=True):
     page = st.radio(
@@ -97,17 +172,17 @@ if page == "Welcome!":
     with center:
         st.title("UFC Predictions with Machine Learning")
 
-        st.markdown(
+        st.caption(
         "<h3 style='text-align:center;'>"
         "Machine Learning–Driven Modeling"
         "</h3>",
         unsafe_allow_html=True)
-        st.caption(
-            "<h3 style='text-align:center;'>"
-            "No Hype, Just Probabilistic Modeling"
-            "</h3>",
-            unsafe_allow_html=True
-            )
+        # st.caption(
+        #     "<h3 style='text-align:center;'>"
+        #     "No Hype, Just Probabilistic Modeling"
+        #     "</h3>",
+        #     unsafe_allow_html=True
+        #     )
     st.divider()
     st.markdown("""   
     #### - Quantify UFC Outcomes with Machine Learning Models. 
@@ -125,7 +200,163 @@ elif page == "How to":
         #insert how to video
         st.video(BASE_DIR/"UFC_ML_DEMO.mov")
 
-elif page == "Get Started: Predict & Visualize Outputs":
+elif page == "Next Event Predictions":
+    #latest event
+    st.title("Next Fight Predictions")
+    upcoming_events = "http://ufcstats.com/statistics/events/upcoming"
+    response = requests.get(upcoming_events)
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # get all fighter links
+    link_elements = soup.select(".b-link_style_black")
+    next_event = link_elements[0]["href"]
+    #print(next_event)
+
+    response2 = requests.get(next_event)
+    soup2 = BeautifulSoup(response2.text, "html.parser")
+
+    #get event title
+    event_title = soup2.select(".b-content__title-highlight")
+    event_title = event_title[0].get_text(strip = True)
+    st.subheader(event_title)
+    # get all fighter links
+    name_elements = soup2.select(".b-link_style_black")
+
+    # Extract text and filter out "View Matchup"
+    fighter_names = [el.get_text(strip=True) for el in name_elements if "View" not in el.get_text()]
+
+    # Create empty lists for Name and Opponent
+    names = []
+    opponents = []
+
+    # Iterate in pairs
+    for i in range(0, len(fighter_names), 2):
+        try:
+            names.append(fighter_names[i])
+            opponents.append(fighter_names[i+1])
+        except IndexError:
+            # in case there's an odd number of fighters (shouldn't happen)
+            opponents.append(None)
+
+    # Create DataFrame
+    next_event_df = pd.DataFrame({
+        "Name": names,
+        "Opponent": opponents
+    })
+
+    x_new,event_stats = preprocess_new_data(next_event_df)
+    #### LATEST EVENT PREDICTIONS
+
+                ###########  PREDICTIONS and MODELING #########
+   
+
+    #move model to gpu
+    NN_model = NN_model.to(device)
+    # Convert x_new for NN
+    # ----------------------------
+    x_new_scaled = scaler.transform(x_new)
+    x_new_t = torch.tensor(x_new_scaled, dtype=torch.float32).to(device)
+
+    ###### Get Preds
+    # Logistic Regression
+    log_model_prob = log_model.predict_proba(x_new)[:, 1]
+
+    #  XGBoost
+    xgb_prob = xgb_model.predict_proba(x_new)[:, 1]
+
+    # Neural Net
+    NN_model.eval()
+    with torch.no_grad():
+        NN_logit =NN_model(x_new_t)
+        NN_prob = torch.sigmoid(NN_logit).cpu().numpy().flatten()
+
+                        ################ ENSEMBLE ############
+    X_meta_new = np.column_stack([log_model_prob, xgb_prob, NN_prob])
+    # Ensemble (meta-model) predictions
+
+    ### USING META
+    new_prob = meta_model.predict_proba(X_meta_new)[:, 1]
+    new_pred = (new_prob >= 0.5).astype(int)
+
+    # Save to event_stats
+    event_stats["Ensemble Pred"] = new_pred
+    event_stats["Ensemble Prob"] = new_prob
+    event_stats["Logistic Prob"] = log_model_prob
+    event_stats["XGB Prob"] = xgb_prob
+    event_stats["Neural Net Prob"] = NN_prob
+
+    #clean data frame
+    event_stats["Predicted Winner"] = np.where(
+        event_stats["Ensemble Pred"] == 1,
+        event_stats["Name"],
+        event_stats["Opponent"]
+    )
+    pred_cols = [col for col in event_stats if "Prob" in col or "Pred" in col and "Predicted" not in col]
+    #print(pred_cols)
+    pred_cols = ["matchup","Predicted Winner","Name"] + pred_cols
+    #print(pred_cols)
+    predictions = event_stats[pred_cols]
+    predictions = predictions.rename(columns = {
+        "Name":"Modeled Fighter"
+    })
+
+    st.session_state.predictions = predictions
+    #make state true now
+    st.session_state.ran_models = True
+    st.session_state.show_table = False  # reset on new run
+
+    ##################################### PLots #####################################
+    #handeling dark mode/ light mode
+                
+    prob_cols = [col for col in event_stats if "Prob" in col in col and "Predicted" not in col]
+    #print(pred_cols)
+    prob_cols = ["Name","Opponent"] + prob_cols
+    probs = event_stats[prob_cols]
+    import matplotlib.pyplot as plt
+
+    for _, row in probs.iterrows():
+        F1 = str(row["Name"])
+        F2 = str(row["Opponent"])
+        p1 = float(row["Ensemble Prob"])
+        p2 = 1 - p1
+
+        pick = F1 if p1 >= 0.5 else F2
+
+        fig, ax = plt.subplots(figsize=(8, 1.8))
+
+        y = [F1, F2]
+        win  = [p1, p2]
+        loss = [1 - p1, 1 - p2]
+        #BARS
+        # set text colors
+        dark = is_dark(theme_type)
+        themed_text = "white" if dark else "black"
+        themed_bar = "white" if dark else "bisque"
+        #colors conditonal on winner
+        colors = ["blue" if w >= 0.5 else "firebrick" for w in win]
+        #STACKED BARS
+        #win part bar
+        ax.barh(y, win, height=0.55, color=colors)
+        #lose part bar
+        ax.barh(y, loss, height=0.2, left=win, color=themed_bar)
+        ax.set_xlim(0, 1)
+        ax.set_xlabel("Win Probability",color = themed_text)
+        ax.set_title(f"{F1} vs {F2} | Predicted Pick: {pick}", fontsize=12,color = themed_text)
+
+        # Transparent background
+        #ax.set_facecolor("none")
+        # fig.patch.set_alpha(0)
+        ax.grid(False)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        ax.tick_params(axis="y",colors=themed_text, length=0)
+        ax.tick_params(axis="x", colors=themed_text)
+
+        plt.tight_layout()
+        st.pyplot(fig,transparent = True)
+elif page == "Run New Events & Visualize Outputs":
+    ############ USER INPUTS ##############
     st.subheader("Paste, Scrape, & Predict 🤖")
     #st.write("State right now:", st.session_state.ran_models)
     #CHECK URL FUNCTIONs
@@ -198,10 +429,6 @@ elif page == "Get Started: Predict & Visualize Outputs":
                 st.caption(f"Details: {e}")
                 st.stop()
 
-            #df ======> historic data 
-
-            df = pd.read_csv(BASE_DIR/"final_ufc_stats.csv")
-            df = df.drop(columns="Unnamed: 0" )
             # Merge fighter stats
             event_stats = event.merge(df, on="Name")
 
@@ -252,7 +479,7 @@ elif page == "Get Started: Predict & Visualize Outputs":
 
 
                                 ###########  PREDICTIONS and MODELING #########
-            device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+            #device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
             #move model to gpu
             NN_model = NN_model.to(device)
@@ -311,14 +538,14 @@ elif page == "Get Started: Predict & Visualize Outputs":
 
             ##################################### PLots #####################################
             #handeling dark mode/ light mode
-            theme_type = st.context.theme.type
+            # theme_type = st.context.theme.type
 
-            # Check if the theme is 'dark'
-            def is_dark(theme_type):
-                if theme_type == "dark":
-                    return True
-                else:
-                    return False
+            # # Check if the theme is 'dark'
+            # def is_dark(theme_type):
+            #     if theme_type == "dark":
+            #         return True
+            #     else:
+            #         return False
                         
             prob_cols = [col for col in event_stats if "Prob" in col in col and "Predicted" not in col]
             #print(pred_cols)
