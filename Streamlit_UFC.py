@@ -11,6 +11,8 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from PIL import Image
+
                                     ########### LOAD MODELS ##########
 BASE_DIR = Path(__file__).parent
 #print("BASE PATH:::",BASE_DIR)
@@ -183,11 +185,15 @@ if page == "Welcome!":
         #     "</h3>",
         #     unsafe_allow_html=True
         #     )
+        image = Image.open(BASE_DIR/"deep_learning.png")
+        st.image(image)
     st.divider()
     st.markdown("""   
-    #### - Quantify UFC Outcomes with Machine Learning Models. 
-    #### - Check out the **How to** section if you've never been here before or jump right to the Get Started Section 
-    #### - Modeling Procedure, Methodology, and Data aquasitition Outlined in the How It Works Section""")
+     ##### - Quantify UFC Outcomes with Machine Learning Models. 
+     ##### - Check out the Next Event Predictions or enter an event of choice
+     ##### - Read the **How to** section if you've never been here before
+     ##### - Modeling Procedure, Methodology, and Data aquasitition Outlined in the How It Works Section""")
+
     
 elif page == "How to":
     with center:
@@ -201,162 +207,164 @@ elif page == "How to":
         st.video(BASE_DIR/"UFC_ML_DEMO.mov")
 
 elif page == "Next Event Predictions":
-    #latest event
-    st.title("Next Fight Predictions")
-    upcoming_events = "http://ufcstats.com/statistics/events/upcoming"
-    response = requests.get(upcoming_events)
-    soup = BeautifulSoup(response.text, "html.parser")
+    with st.spinner("Getting Data & Running Models"):
+        #latest event
+        st.title("Next Fight Predictions")
+        upcoming_events = "http://ufcstats.com/statistics/events/upcoming"
+        response = requests.get(upcoming_events)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-    # get all fighter links
-    link_elements = soup.select(".b-link_style_black")
-    next_event = link_elements[0]["href"]
-    #print(next_event)
+        # get all fighter links
+        link_elements = soup.select(".b-link_style_black")
+        next_event = link_elements[0]["href"]
+        #print(next_event)
 
-    response2 = requests.get(next_event)
-    soup2 = BeautifulSoup(response2.text, "html.parser")
+        response2 = requests.get(next_event)
+        soup2 = BeautifulSoup(response2.text, "html.parser")
 
-    #get event title
-    event_title = soup2.select(".b-content__title-highlight")
-    event_title = event_title[0].get_text(strip = True)
-    st.subheader(event_title)
-    # get all fighter links
-    name_elements = soup2.select(".b-link_style_black")
+        #get event title
+        event_title = soup2.select(".b-content__title-highlight")
+        event_title = event_title[0].get_text(strip = True)
+        st.subheader(event_title)
+        # get all fighter links
+        name_elements = soup2.select(".b-link_style_black")
 
-    # Extract text and filter out "View Matchup"
-    fighter_names = [el.get_text(strip=True) for el in name_elements if "View" not in el.get_text()]
+        # Extract text and filter out "View Matchup"
+        fighter_names = [el.get_text(strip=True) for el in name_elements if "View" not in el.get_text()]
 
-    # Create empty lists for Name and Opponent
-    names = []
-    opponents = []
+        # Create empty lists for Name and Opponent
+        names = []
+        opponents = []
 
-    # Iterate in pairs
-    for i in range(0, len(fighter_names), 2):
-        try:
-            names.append(fighter_names[i])
-            opponents.append(fighter_names[i+1])
-        except IndexError:
-            # in case there's an odd number of fighters (shouldn't happen)
-            opponents.append(None)
+        # Iterate in pairs
+        for i in range(0, len(fighter_names), 2):
+            try:
+                names.append(fighter_names[i])
+                opponents.append(fighter_names[i+1])
+            except IndexError:
+                # in case there's an odd number of fighters (shouldn't happen)
+                opponents.append(None)
 
-    # Create DataFrame
-    next_event_df = pd.DataFrame({
-        "Name": names,
-        "Opponent": opponents
-    })
+        # Create DataFrame
+        next_event_df = pd.DataFrame({
+            "Name": names,
+            "Opponent": opponents
+        })
 
-    x_new,event_stats = preprocess_new_data(next_event_df)
-    #### LATEST EVENT PREDICTIONS
+        x_new,event_stats = preprocess_new_data(next_event_df)
+        #### LATEST EVENT PREDICTIONS
 
-                ###########  PREDICTIONS and MODELING #########
-   
+                    ###########  PREDICTIONS and MODELING #########
+    
 
-    #move model to gpu
-    NN_model = NN_model.to(device)
-    # Convert x_new for NN
-    # ----------------------------
-    x_new_scaled = scaler.transform(x_new)
-    x_new_t = torch.tensor(x_new_scaled, dtype=torch.float32).to(device)
+        #move model to gpu
+        NN_model = NN_model.to(device)
+        # Convert x_new for NN
+        # ----------------------------
+        x_new_scaled = scaler.transform(x_new)
+        x_new_t = torch.tensor(x_new_scaled, dtype=torch.float32).to(device)
 
-    ###### Get Preds
-    # Logistic Regression
-    log_model_prob = log_model.predict_proba(x_new)[:, 1]
+        ###### Get Preds
+        # Logistic Regression
+        log_model_prob = log_model.predict_proba(x_new)[:, 1]
 
-    #  XGBoost
-    xgb_prob = xgb_model.predict_proba(x_new)[:, 1]
+        #  XGBoost
+        xgb_prob = xgb_model.predict_proba(x_new)[:, 1]
 
-    # Neural Net
-    NN_model.eval()
-    with torch.no_grad():
-        NN_logit =NN_model(x_new_t)
-        NN_prob = torch.sigmoid(NN_logit).cpu().numpy().flatten()
+        # Neural Net
+        NN_model.eval()
+        with torch.no_grad():
+            NN_logit =NN_model(x_new_t)
+            NN_prob = torch.sigmoid(NN_logit).cpu().numpy().flatten()
 
-                        ################ ENSEMBLE ############
-    X_meta_new = np.column_stack([log_model_prob, xgb_prob, NN_prob])
-    # Ensemble (meta-model) predictions
+                            ################ ENSEMBLE ############
+        X_meta_new = np.column_stack([log_model_prob, xgb_prob, NN_prob])
+        # Ensemble (meta-model) predictions
 
-    ### USING META
-    new_prob = meta_model.predict_proba(X_meta_new)[:, 1]
-    new_pred = (new_prob >= 0.5).astype(int)
+        ### USING META
+        new_prob = meta_model.predict_proba(X_meta_new)[:, 1]
+        new_pred = (new_prob >= 0.5).astype(int)
 
-    # Save to event_stats
-    event_stats["Ensemble Pred"] = new_pred
-    event_stats["Ensemble Prob"] = new_prob
-    event_stats["Logistic Prob"] = log_model_prob
-    event_stats["XGB Prob"] = xgb_prob
-    event_stats["Neural Net Prob"] = NN_prob
+        # Save to event_stats
+        event_stats["Ensemble Pred"] = new_pred
+        event_stats["Ensemble Prob"] = new_prob
+        event_stats["Logistic Prob"] = log_model_prob
+        event_stats["XGB Prob"] = xgb_prob
+        event_stats["Neural Net Prob"] = NN_prob
 
-    #clean data frame
-    event_stats["Predicted Winner"] = np.where(
-        event_stats["Ensemble Pred"] == 1,
-        event_stats["Name"],
-        event_stats["Opponent"]
-    )
-    pred_cols = [col for col in event_stats if "Prob" in col or "Pred" in col and "Predicted" not in col]
-    #print(pred_cols)
-    pred_cols = ["matchup","Predicted Winner","Name"] + pred_cols
-    #print(pred_cols)
-    predictions = event_stats[pred_cols]
-    predictions = predictions.rename(columns = {
-        "Name":"Modeled Fighter"
-    })
+        #clean data frame
+        event_stats["Predicted Winner"] = np.where(
+            event_stats["Ensemble Pred"] == 1,
+            event_stats["Name"],
+            event_stats["Opponent"]
+        )
+        pred_cols = [col for col in event_stats if "Prob" in col or "Pred" in col and "Predicted" not in col]
+        #print(pred_cols)
+        pred_cols = ["matchup","Predicted Winner","Name"] + pred_cols
+        #print(pred_cols)
+        predictions = event_stats[pred_cols]
+        predictions = predictions.rename(columns = {
+            "Name":"Modeled Fighter"
+        })
 
-    st.session_state.predictions = predictions
-    #make state true now
-    st.session_state.ran_models = True
-    st.session_state.show_table = False  # reset on new run
+        st.session_state.predictions = predictions
+        #make state true now
+        st.session_state.ran_models = True
+        st.session_state.show_table = False  # reset on new run
 
-    ##################################### PLots #####################################
-    #handeling dark mode/ light mode
-                
-    prob_cols = [col for col in event_stats if "Prob" in col in col and "Predicted" not in col]
-    #print(pred_cols)
-    prob_cols = ["Name","Opponent"] + prob_cols
-    probs = event_stats[prob_cols]
-    import matplotlib.pyplot as plt
+        ##################################### PLots #####################################
+        #handeling dark mode/ light mode
+                    
+        prob_cols = [col for col in event_stats if "Prob" in col in col and "Predicted" not in col]
+        #print(pred_cols)
+        prob_cols = ["Name","Opponent"] + prob_cols
+        probs = event_stats[prob_cols]
+        import matplotlib.pyplot as plt
 
-    for _, row in probs.iterrows():
-        F1 = str(row["Name"])
-        F2 = str(row["Opponent"])
-        p1 = float(row["Ensemble Prob"])
-        p2 = 1 - p1
+        for _, row in probs.iterrows():
+            F1 = str(row["Name"])
+            F2 = str(row["Opponent"])
+            p1 = float(row["Ensemble Prob"])
+            p2 = 1 - p1
 
-        pick = F1 if p1 >= 0.5 else F2
+            pick = F1 if p1 >= 0.5 else F2
 
-        fig, ax = plt.subplots(figsize=(8, 1.8))
+            fig, ax = plt.subplots(figsize=(8, 1.8))
 
-        y = [F1, F2]
-        win  = [p1, p2]
-        loss = [1 - p1, 1 - p2]
-        #BARS
-        # set text colors
-        dark = is_dark(theme_type)
-        themed_text = "white" if dark else "black"
-        themed_bar = "white" if dark else "bisque"
-        #colors conditonal on winner
-        colors = ["blue" if w >= 0.5 else "firebrick" for w in win]
-        #STACKED BARS
-        #win part bar
-        ax.barh(y, win, height=0.55, color=colors)
-        #lose part bar
-        ax.barh(y, loss, height=0.2, left=win, color=themed_bar)
-        ax.set_xlim(0, 1)
-        ax.set_xlabel("Win Probability",color = themed_text)
-        ax.set_title(f"{F1} vs {F2} | Predicted Pick: {pick}", fontsize=12,color = themed_text)
+            y = [F1, F2]
+            win  = [p1, p2]
+            loss = [1 - p1, 1 - p2]
+            #BARS
+            # set text colors
+            dark = is_dark(theme_type)
+            themed_text = "white" if dark else "black"
+            themed_bar = "white" if dark else "bisque"
+            #colors conditonal on winner
+            colors = ["blue" if w >= 0.5 else "firebrick" for w in win]
+            #STACKED BARS
+            #win part bar
+            ax.barh(y, win, height=0.55, color=colors)
+            #lose part bar
+            ax.barh(y, loss, height=0.2, left=win, color=themed_bar)
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("Win Probability",color = themed_text)
+            ax.set_title(f"{F1} vs {F2} | Predicted Pick: {pick}", fontsize=12,color = themed_text)
 
-        # Transparent background
-        #ax.set_facecolor("none")
-        # fig.patch.set_alpha(0)
-        ax.grid(False)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
+            # Transparent background
+            #ax.set_facecolor("none")
+            # fig.patch.set_alpha(0)
+            ax.grid(False)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
 
-        ax.tick_params(axis="y",colors=themed_text, length=0)
-        ax.tick_params(axis="x", colors=themed_text)
+            ax.tick_params(axis="y",colors=themed_text, length=0)
+            ax.tick_params(axis="x", colors=themed_text)
 
-        plt.tight_layout()
-        st.pyplot(fig,transparent = True)
+            plt.tight_layout()
+            st.pyplot(fig,transparent = True)
+
+############ USER INPUTS ##############
 elif page == "Run New Events & Visualize Outputs":
-    ############ USER INPUTS ##############
     st.subheader("Paste, Scrape, & Predict 🤖")
     #st.write("State right now:", st.session_state.ran_models)
     #CHECK URL FUNCTIONs
