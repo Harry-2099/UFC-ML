@@ -185,7 +185,9 @@ if page == "Welcome!":
         #     "</h3>",
         #     unsafe_allow_html=True
         #     )
-        image = Image.open(BASE_DIR/"deep_learning.png")
+        image_path = BASE_DIR / "deep_learning.png"
+        # Open image
+        image = Image.open(image_path)
         st.image(image)
     st.divider()
     st.markdown("""   
